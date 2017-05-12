@@ -25,15 +25,14 @@ public class Store<State> {
   private Disposable disposable;
 
   Store(State initialState,
-      Reducer<State> reducer,
+      Reducer<State>[] reducers,
       Effect<State>[] effects) {
-    this.reducer = reducer;
+    this.reducer = new RootReducer<State>(reducers);
     this.action$ = PublishSubject.create();
     this.state$ = BehaviorSubject.createDefault(initialState);
     this.result$ = Observable.fromArray(effects)
-        .flatMap(new Function<Effect<State>, ObservableSource<Object>>() {
-          @Override public ObservableSource<Object> apply(Effect<State> effect)
-              throws Exception {
+        .flatMap(new Function<Effect<State>, ObservableSource<?>>() {
+          @Override public ObservableSource<?> apply(Effect<State> effect) throws Exception {
             return effect.apply(action$, getState);
           }
         });
@@ -55,13 +54,18 @@ public class Store<State> {
     action$.onNext(action);
   }
 
-  void startBinding() {
+  public void startBinding() {
     if (disposable != null) {
       // binding is started already
       return;
     }
     disposable = result$
         .scan(currentState(), reducer)
+        .doOnError(new Consumer<Throwable>() {
+          @Override public void accept(Throwable throwable) throws Exception {
+            throwable.printStackTrace();
+          }
+        })
         .subscribe(new Consumer<State>() {
           @Override public void accept(State state) throws Exception {
             state$.onNext(state);
@@ -69,7 +73,7 @@ public class Store<State> {
         });
   }
 
-  void stopBinding() {
+  public void stopBinding() {
     if (disposable != null) {
       disposable.dispose();
       disposable = null;
@@ -78,7 +82,7 @@ public class Store<State> {
 
   public static class Builder<State> {
     private State initialState;
-    private Reducer<State> reducer;
+    private Reducer<State>[] reducers;
     private Effect<State>[] effects;
 
     Builder() {
@@ -86,26 +90,27 @@ public class Store<State> {
     }
 
     public Builder<State> initialState(State initialState) {
-      Preconditions.checkNotNull(initialState, "initialState must not be null");
       this.initialState = initialState;
       return this;
     }
 
-    public Builder<State> reducer(Reducer<State> reducer) {
-      Preconditions.checkNotNull(reducer, "reducer must not be null");
-      this.reducer = reducer;
+    public final Builder<State> reducers(Reducer<State>... reducers) {
+      this.reducers = reducers;
       return this;
     }
 
     public final Builder<State> effects(Effect<State>... effects) {
-      Preconditions.checkNotNull(effects);
-      Preconditions.checkNotEmpty(effects, "effects must not be empty");
       this.effects = effects;
       return this;
     }
 
     public Store<State> make() {
-      return new Store<State>(initialState, reducer, effects);
+      Preconditions.checkNotNull(initialState, "initialState must not be null");
+      Preconditions.checkNotNull(reducers, "reducers must not be null");
+      Preconditions.checkNotEmpty(reducers, "reducers must not be empty");
+      Preconditions.checkNotNull(effects);
+      Preconditions.checkNotEmpty(effects, "effects must not be empty");
+      return new Store<State>(initialState, reducers, effects);
     }
   }
 }

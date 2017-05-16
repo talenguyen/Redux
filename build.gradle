@@ -3,6 +3,29 @@ version '1.0.0-SNAPSHOT'
 
 apply plugin: 'maven'
 apply plugin: 'java'
+apply plugin: 'jacoco'
+
+jacocoTestReport {
+  reports {
+    xml.enabled true
+    html.enabled true
+    html.destination "${buildDir}/reports/jacoco/html/"
+  }
+}
+
+//jacocoTestReport {
+//  reports {
+//    xml.enabled true
+//    html.enabled true
+//    html.destination "${buildDir}/reports/jacoco/html/"
+//  }
+//
+//  def classFileTree = fileTree(dir: "${buildDir}/classes")
+//
+//  classDirectories = files([classFileTree])
+//  sourceDirectories = files("${project.projectDir}/src/main/java")
+//  executionData = files("${buildDir}/jacoco/test.exec")
+//}
 
 repositories {
   jcenter()
@@ -12,6 +35,7 @@ repositories {
 
 dependencies {
   compile 'io.reactivex.rxjava2:rxjava:2.0.1'
+  testCompile 'junit:junit:4.12'
 }
 
 sourceCompatibility = 1.7 // java 8

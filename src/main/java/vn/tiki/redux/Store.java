@@ -7,46 +7,48 @@ import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
 import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.PublishSubject;
+import java.util.Map;
 
 /**
  * Created by Giang Nguyen on 3/23/17.
  */
-public class Store<State> {
+public class Store {
 
-  private final Reducer<State> reducer;
+  private final RootReducer reducer;
   private final PublishSubject<Object> action$;
-  private final BehaviorSubject<State> state$;
+  private final BehaviorSubject<Map<String, Object>> state$;
   private final Observable<Object> result$;
-  private final Function0<State> getState = new Function0<State>() {
-    @Override public State involve() throws Exception {
+  private final Function0<Map<String, Object>> getState = new Function0<Map<String, Object>>() {
+    @Override public Map<String, Object> involve() throws Exception {
       return currentState();
     }
   };
   private Disposable disposable;
 
-  Store(State initialState,
-      Reducer<State>[] reducers,
-      Effect<State>[] effects) {
-    this.reducer = new RootReducer<State>(reducers);
+  Store(Map<String, Object> initialState,
+      Reducer[] reducers,
+      Effect[] effects) {
+    this.reducer = new RootReducer(reducers);
     this.action$ = PublishSubject.create();
     this.state$ = BehaviorSubject.createDefault(initialState);
     this.result$ = Observable.fromArray(effects)
-        .flatMap(new Function<Effect<State>, ObservableSource<?>>() {
-          @Override public ObservableSource<?> apply(Effect<State> effect) throws Exception {
+        .flatMap(new Function<Effect, ObservableSource<?>>() {
+          @Override public ObservableSource<?> apply(Effect effect) throws Exception {
             return effect.apply(action$, getState);
           }
-        });
+        })
+        .startWith(new InitialResult());
   }
 
-  public static <State> Builder<State> builder() {
-    return new Builder<State>();
+  public static Builder builder() {
+    return new Builder();
   }
 
-  private State currentState() {
+  private Map<String, Object> currentState() {
     return state$.getValue();
   }
 
-  public Observable<State> state$() {
+  public Observable<Map<String, Object>> state$() {
     return state$;
   }
 
@@ -66,8 +68,8 @@ public class Store<State> {
             throwable.printStackTrace();
           }
         })
-        .subscribe(new Consumer<State>() {
-          @Override public void accept(State state) throws Exception {
+        .subscribe(new Consumer<Map<String, Object>>() {
+          @Override public void accept(Map<String, Object> state) throws Exception {
             state$.onNext(state);
           }
         });
@@ -80,37 +82,37 @@ public class Store<State> {
     }
   }
 
-  public static class Builder<State> {
-    private State initialState;
-    private Reducer<State>[] reducers;
-    private Effect<State>[] effects;
+  public static class Builder {
+    private Map<String, Object> initialState;
+    private Reducer[] reducers;
+    private Effect[] effects;
 
     Builder() {
       // private constructor
     }
 
-    public Builder<State> initialState(State initialState) {
+    public Builder initialState(Map<String, Object> initialState) {
       this.initialState = initialState;
       return this;
     }
 
-    public final Builder<State> reducers(Reducer<State>... reducers) {
+    public final Builder reducers(Reducer... reducers) {
       this.reducers = reducers;
       return this;
     }
 
-    public final Builder<State> effects(Effect<State>... effects) {
+    public final Builder effects(Effect... effects) {
       this.effects = effects;
       return this;
     }
 
-    public Store<State> make() {
+    public Store make() {
       Preconditions.checkNotNull(initialState, "initialState must not be null");
       Preconditions.checkNotNull(reducers, "reducers must not be null");
       Preconditions.checkNotEmpty(reducers, "reducers must not be empty");
       Preconditions.checkNotNull(effects);
       Preconditions.checkNotEmpty(effects, "effects must not be empty");
-      return new Store<State>(initialState, reducers, effects);
+      return new Store(initialState, reducers, effects);
     }
   }
 }
